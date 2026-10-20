@@ -12,9 +12,12 @@
 // significativa, que é o formato dos códigos da lista do roteiro [1]
 // (ex.: VOL+ = 0x00FFA857).
 //
-// Uso: VOL+ / VOL- ajustam o brilho do LED vermelho, CH+ / CH- o do verde,
-// PLAY deixa os dois em 50% e 0 apaga os dois. Manter o botão pressionado
-// (código de repetição) repete o último comando.
+// Uso: "+" / "-" ajustam o brilho do LED vermelho, CH+ / CH- o do verde,
+// PLAY deixa os dois em 50%, 0 apaga os dois e 1..9 colocam os dois em
+// 10%..90%. Manter o botão pressionado (código de repetição) repete os ajustes.
+//
+// [1] https://gist.github.com/danyboy666/f342c1cca26e88e0e637ee071698ac56
+//     (controle "Car mp3", código de usuário 00FF)
 // O brilho é um PWM por software no Timer A0 (como no exercício 15).
 
 #include <msp430.h>
@@ -27,10 +30,17 @@
 // Códigos do controle (gist do roteiro)
 #define TECLA_CH_MENOS  0x00FFA25DUL
 #define TECLA_CH_MAIS   0x00FFE21DUL
-#define TECLA_VOL_MENOS 0x00FFE01FUL
-#define TECLA_VOL_MAIS  0x00FFA857UL
+#define TECLA_VOL_MENOS 0x00FFE01FUL     // "-"
+#define TECLA_VOL_MAIS  0x00FFA857UL     // "+"
 #define TECLA_PLAY      0x00FFC23DUL
 #define TECLA_0         0x00FF6897UL
+
+// Teclas 1..9, na ordem
+const uint32_t teclasNumericas[9] = {
+    0x00FF30CFUL, 0x00FF18E7UL, 0x00FF7A85UL,     // 1 2 3
+    0x00FF10EFUL, 0x00FF38C7UL, 0x00FF5AA5UL,     // 4 5 6
+    0x00FF42BDUL, 0x00FF4AB5UL, 0x00FF52ADUL      // 7 8 9
+};
 
 // Janelas de tempo em tiques de SMCLK/8 (1 tique ~ 7,63 us)
 #define DENTRO(x, min, max) ((x) >= (min) && (x) <= (max))
@@ -110,8 +120,14 @@ void main(void){
                 case TECLA_0:
                     brilhoVermelho = brilhoVerde = 0;
                     break;
-                default:
+                default: {
+                    uint8_t n;
+                    for(n = 0; n < 9; n++){
+                        if(codigo == teclasNumericas[n])    // Tecla n+1
+                            brilhoVermelho = brilhoVerde = (n + 1) * PERIODO_PWM / 10;
+                    }
                     break;
+                }
             }
             atualizarBrilho();
         }

@@ -4,8 +4,9 @@
 //   leitura < L1        -> joystick para um lado   -> frase anterior
 //   leitura > L2        -> joystick para o outro   -> próxima frase
 //   L1 <= leitura <= L2 -> posição neutra          -> mantém a frase
-// Como na Parte 1 (chaves), a frase muda uma vez a cada movimento: o
-// joystick precisa voltar para a região neutra antes de mudar de novo.
+// A frase muda assim que o joystick sai da região neutra (como o acionamento
+// das chaves na Parte 1). Se ele continuar inclinado, depois de 1 s a frase
+// passa a mudar a cada 0,5 s, para dar tempo de ler cada uma.
 // A faixa neutra larga (L1 < L2) evita que o controle fique sensível demais.
 //
 // Ligações:
@@ -28,6 +29,10 @@
 // Limiares da posição neutra (ADC de 12 bits: 0..4095, centro ~2048)
 #define L1 1300
 #define L2 2800
+
+// Repetição com o joystick segurado (em amostras de 100 ms)
+#define ESPERA_REPETICAO   10   // 1 s
+#define PERIODO_REPETICAO  5    // 0,5 s
 
 typedef enum { NEUTRO, ESQUERDA, DIREITA } Posicao;
 
@@ -171,6 +176,7 @@ void main(void){
     uint8_t atual = 0;
     mostrarFrase(atual);
     Posicao anterior = NEUTRO;
+    uint16_t amostrasNoLado = 0;
 
     __enable_interrupt();
 
@@ -185,17 +191,26 @@ void main(void){
         if(novaLeitura){
             novaLeitura = 0;
             Posicao agora = classificar(leitura);
+            uint8_t mudar = 0;
 
-            if(agora != anterior){                  // Saiu de uma região
-                if(agora == ESQUERDA){              // Neutro -> um lado
-                    atual = (atual == 0) ? N_FRASES - 1 : atual - 1;
-                    mostrarFrase(atual);
-                }
-                else if(agora == DIREITA){          // Neutro -> outro lado
-                    atual = (atual + 1) % N_FRASES;
-                    mostrarFrase(atual);
-                }
+            if(agora != anterior){                  // Acabou de entrar na região
+                amostrasNoLado = 0;
+                mudar = (agora != NEUTRO);
                 anterior = agora;
+            }
+            else if(agora != NEUTRO){               // Continua inclinado
+                amostrasNoLado++;
+                if(amostrasNoLado >= ESPERA_REPETICAO &&
+                   (amostrasNoLado - ESPERA_REPETICAO) % PERIODO_REPETICAO == 0)
+                    mudar = 1;
+            }
+
+            if(mudar){
+                if(agora == ESQUERDA)               // Um lado: anterior
+                    atual = (atual == 0) ? N_FRASES - 1 : atual - 1;
+                else                                // Outro lado: próxima
+                    atual = (atual + 1) % N_FRASES;
+                mostrarFrase(atual);
             }
         }
     }

@@ -3,9 +3,27 @@
 Soluções dos exercícios do **Laboratório de Sistemas Microprocessados — 2026.2**
 (placa MSP-EXP430F5529LP, Code Composer Studio).
 
-Cada arquivo `.asm`/`.c` é um programa completo e independente: no CCS, crie
-um projeto para o MSP430F5529 (vazio, em assembly ou em C) e copie o arquivo
-para dentro dele.
+Cada arquivo `.asm`/`.c` é um programa completo e independente: um arquivo
+por projeto no CCS.
+
+## Como usar no Code Composer Studio
+
+**Programas em C (Módulos 2 e 3)**
+
+1. *File → New → CCS Project*, alvo **MSP430F5529**, modelo **Empty Project (with main.c)**.
+2. Substitua o conteúdo do `main.c` pelo arquivo desejado.
+
+**Programas em assembly (Módulo 1)** — usam `.global main`, como no roteiro:
+
+1. *File → New → CCS Project*, alvo **MSP430F5529**, modelo **Empty Project**
+   (não use o "Empty Assembly-only Project": ele começa em `RESET` e não chama `main`).
+2. Apague o `main.c` e adicione o `.asm` desejado ao projeto.
+3. Em *Project → Properties → Build → MSP430 Compiler → Processor Options*,
+   coloque **Code memory model = small** e **Data memory model = small**.
+   Com o modelo *large* o código vai para acima de 64 KB e os `call #rotina`
+   (endereço de 16 bits) dão erro *"relocation ... overflowed"*.
+
+O `build.sh` compila exatamente nessa configuração.
 
 ## Estrutura
 
@@ -66,12 +84,11 @@ no comentário do arquivo ao pino de **baixo** do jumper.
 - Clocks padrão do F5529: MCLK = SMCLK ≈ 1,048576 MHz, ACLK = 32768 Hz.
   O código base do servo (Visto 2) trata o SMCLK como 1 MHz; os outros
   programas do servo seguem a mesma convenção.
-- **Assembly no CCS:** se o link der *"relocation ... overflowed"* em um
-  `call #rotina`, mude o *code model* do projeto para `small`
-  (Properties → Build → MSP430 Compiler → Processor Options).
-- No Módulo 3 Parte 2 do Problema Final, a frase muda uma vez por movimento
-  do joystick (é preciso voltar à região neutra para mudar de novo), igual
-  ao comportamento das chaves na Parte 1.
+- No Problema Final do Módulo 3 (Parte 2), a frase muda assim que o joystick
+  sai da região neutra; se ele continuar inclinado, depois de 1 s passa a
+  mudar a cada 0,5 s.
+- Os códigos do controle remoto (Mód. 2, ex. 18) são os do gist indicado no
+  roteiro (controle "Car mp3", NEC, usuário 00FF).
 - O exercício 9 do Módulo 3 é só de cálculo: `modulo3/exercicios/ex09_tempo_amostragem.md`.
 
 ## Compilar e testar sem a placa
