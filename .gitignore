@@ -1,0 +1,9 @@
+build/
+*.exe
+__pycache__/
+# Arquivos gerados pelo Code Composer Studio
+Debug/
+Release/
+.launches/
+.settings/
+targetConfigs/
