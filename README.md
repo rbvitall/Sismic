@@ -75,9 +75,11 @@ build.sh   Compila tudo com o compilador do CCS
 | UART entre placas (USCI_A0) | P3.3 = TX, P3.4 = RX |
 | UART com o PC (USCI_A1) | interna (eZ-FET), 9600 bps 8N1 |
 
-Os exercícios que usam a saída de um timer no LED vermelho (Mód. 2 ex. 9/10 e
-Mód. 3 ex. 14/Visto 2) pedem para tirar o jumper JP8 e ligar o pino indicado
-no comentário do arquivo ao pino de **baixo** do jumper.
+Os exercícios 9 e 10 do Módulo 2 usam a saída de um timer no LED vermelho:
+tire o jumper JP8 e ligue o pino indicado no comentário do arquivo ao pino de
+**baixo** do jumper. No Visto 2 / ex. 14 do Módulo 3 isso não é preciso: o
+PWM do LED vermelho é repetido em P1.0 pelas interrupções do Timer B
+(`LED_VERMELHO_SOFTWARE = 1`).
 
 ## Observações
 
@@ -106,5 +108,8 @@ tools/run_host_tests.sh       # roda os testes
 - `tools/host/test_m2_final.c` simula no PC as rotinas de interrupção do
   Problema Final do Módulo 2 para conferir a máquina de estados do servo.
 
-Os programas dos Módulos 2 e 3 dependem de periféricos (timers, I2C, ADC,
-UART), então foram compilados mas precisam ser conferidos na placa.
+Os três Vistos do Módulo 3 foram testados na placa e servem de base para o
+resto do módulo. Os outros exercícios usam as mesmas rotinas: a inicialização
+do LCD (com as esperas do Visto 1) e a UART a 9600 bps (configuração do
+Visto 3). Os demais programas dos Módulos 2 e 3 foram compilados, mas ainda
+precisam ser conferidos na placa.

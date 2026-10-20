@@ -7,8 +7,9 @@
 // - Recepção por interrupção, gravando num buffer circular de 32 caracteres.
 // - O main devolve (eco) o que chega, para dar para ver no terminal.
 //
-// Baud rate com SMCLK = 1048576 Hz:
-//   N = 1048576 / 9600 = 109,23 -> UCBR = 109, UCBRS = round(0,23 * 8) = 2
+// Baud rate com SMCLK = 1048576 Hz, mesma configuração do Visto 3 (testada
+// na placa). Tabela do User's Guide (SLAU208), com oversampling:
+//   UCBRx = 6, UCBRSx = 0, UCBRFx = 13, UCOS16 = 1
 
 #include <msp430.h>
 #include <stdint.h>
@@ -23,9 +24,9 @@ void initUART_A1(void){
     UCA1CTL1 = UCSWRST;
     UCA1CTL0 = 0;                       // 8N1
     UCA1CTL1 = UCSSEL__SMCLK | UCSWRST;
-    UCA1BR0 = 109;
+    UCA1BR0 = 6;
     UCA1BR1 = 0;
-    UCA1MCTL = UCBRS_2 | UCBRF_0;
+    UCA1MCTL = UCBRS_0 | UCBRF_13 | UCOS16;     // Oversampling
     P4SEL |= BIT4 | BIT5;               // P4.4 = TXD, P4.5 = RXD
     UCA1CTL1 &= ~UCSWRST;
     UCA1IE |= UCRXIE;

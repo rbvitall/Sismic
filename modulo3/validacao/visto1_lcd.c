@@ -1,128 +1,138 @@
-// Módulo 3 - Visto 1: escrever uma mensagem no LCD conectado ao MSP430
-// Esqueleto do roteiro com as funções dos exercícios 1, 3, 4 e 6 implementadas.
-// Endereço I2C do módulo LCD: 0x27 ou 0x3F.
-
+// ============================================================================
+// Lab. Sistemas Microprocessados 2026.2 - Modulo 3 - VISTO 1
+// Escrever mensagem no LCD 16x2 via I2C (PCF8574) - MSP430F5529 LaunchPad
+// Exercicios 1, 3, 4, 5 e 6 do Modulo3.pdf
+//
+// Ligacoes: P3.0 = SDA, P3.1 = SCL, VCC do modulo LCD = 5V da placa, GND = GND
+// Se nada aparecer: 1) troque LCD_I2C_ADDR para 0x3F
+//                   2) gire o trimpot azul de contraste atras do modulo
+// ============================================================================
 #include <msp430.h>
-
-// Esta biblioteca permite usar o tipo uint8_t
 #include <stdint.h>
 
-// Endereço I2C do módulo LCD
-#define LCD_I2C_ADDR 0x27 // talvez o seu seja 0x3F
+// Endereco I2C do modulo LCD
+#define LCD_I2C_ADDR 0x27   // PCF8574T = 0x27 | PCF8574AT = 0x3F
 
-// Definição dos pinos no PCF8574
-// P7-P4: D7-D4 (dados)
-// P3: BL (backlight)
-// P2: EN (enable)
-// P1: RW (read/write)
-// P0: RS (register select)
+// Pinos do PCF8574
+#define LCD_RS 0x01 // 0: Comando, 1: Dados
+#define LCD_RW 0x02 // 0: Escrita, 1: Leitura
+#define LCD_EN 0x04 // Pulso de habilitacao
+#define LCD_BL 0x08 // Luz de fundo
+#define LCD_D4 0x10
+#define LCD_D5 0x20
+#define LCD_D6 0x40
+#define LCD_D7 0x80
 
-#define LCD_RS      0x01 // 0: Comando, 1: Dados
-#define LCD_RW      0x02 // 0: Escrita, 1: Leitura
-#define LCD_EN      0x04 // Pulso de habilitação
-#define LCD_BL      0x08 // Controle da luz de fundo
-#define LCD_D4      0x10 // Bit de dados 4
-#define LCD_D5      0x20 // Bit de dados 5
-#define LCD_D6      0x40 // Bit de dados 6
-#define LCD_D7      0x80 // Bit de dados 7
-
-#define LCD_COLUNAS 16
-
-// Protótipos das funções
+// Prototipos
 void initI2C_Master(void);
 uint8_t i2cSend(uint8_t slaveAddr, uint8_t data);
-uint8_t lcdWriteNibble (uint8_t nibble, uint8_t isChar);
-uint8_t lcdWriteByte (uint8_t byte, uint8_t isChar);
+uint8_t lcdWriteNibble(uint8_t nibble, uint8_t isChar);
+uint8_t lcdWriteByte(uint8_t byte, uint8_t isChar);
 void lcdInit(void);
 void lcdWrite(char* str);
-
-// Posição atual do cursor (0..31), usada para a quebra de linha
-uint8_t lcdPos = 0;
+void lcdSetCursor(uint8_t linha, uint8_t coluna);
 
 void main(void){
     WDTCTL = WDTPW | WDTHOLD;
 
-    // Configura os pinos GPIO para I2C
     // UCB0: P3.0 = SDA, P3.1 = SCL
-    P3SEL |= BIT0 | BIT1;                   // Atribui os pinos ao módulo I2C UCB0
-    P3REN |= BIT0 | BIT1;                   // Pull-ups internos (o módulo do LCD
-    P3OUT |= BIT0 | BIT1;                   // costuma ter os seus também)
+    P3DIR &= ~(BIT0 | BIT1);      // DIR = 0 (pede o roteiro)
+    P3REN |=  (BIT0 | BIT1);      // Habilita resistores internos...
+    P3OUT |=  (BIT0 | BIT1);      // ...como pull-up
+    P3SEL |=  (BIT0 | BIT1);      // Funcao dedicada I2C
 
-    // Inicializa o módulo I2C
     initI2C_Master();
 
-    // Esperar um pouco antes de realizar outra ação
-    __delay_cycles(20000);
+    // LCD precisa de >40 ms apos energizar antes da inicializacao
+    __delay_cycles(50000);
 
-    // Inicializar LCD
     lcdInit();
 
-    // Enviar string para ser escrita
+    // Teste do Ex. 6: passa de 16 caracteres -> quebra automatica de linha
     lcdWrite("Teste");
+    // Exemplos alternativos:
+    // lcdWrite("Lab Microproc.\nModulo 3 - OK");   // '\n' forca a linha 2
+    // lcdWrite("Texto bem longo que quebra linha");
 
-    // Loop infinito
     for(;;){
-
         __no_operation();
     }
 }
 
+// ----------------------------------------------------------------------------
+// I2C mestre, SMCLK (~1,05 MHz) / 10 = ~100 kHz
+// ----------------------------------------------------------------------------
 void initI2C_Master(void) {
-
-    UCB0CTL1 |= UCSWRST;                    // Reseta para iniciar a configuração
-    UCB0CTL0 = UCMST | UCMODE_3 | UCSYNC;   // Mestre, I2C (MODE = 3), síncrono
-    UCB0CTL1 = UCSSEL_2 | UCSWRST;          // Usa SMCLK (1 MHz), mantém reset
-    UCB0BR0 = 10;                           // SMCLK/10 = 100 kHz
+    UCB0CTL1 |= UCSWRST;                    // Reset para configurar
+    UCB0CTL0 = UCMST | UCMODE_3 | UCSYNC;   // Mestre, I2C, sincrono
+    UCB0CTL1 = UCSSEL_2 | UCSWRST;          // SMCLK, mantem reset
+    UCB0BR0 = 10;
     UCB0BR1 = 0;
-    UCB0CTL1 &= ~UCSWRST;                   // Limpa reset para terminar a configuração
+    UCB0CTL1 &= ~UCSWRST;                   // Libera o modulo
 }
 
-// Exercício 1: retorna 0 se houve ACK e 1 se houve NACK
+// ----------------------------------------------------------------------------
+// Exercicio 1: envia 1 byte ao escravo. Retorna 0 = ACK, 1 = NACK
+// ----------------------------------------------------------------------------
 uint8_t i2cSend(uint8_t slaveAddr, uint8_t data) {
-    UCB0I2CSA = slaveAddr;                  // 1. Endereço do escravo
-    UCB0CTL1 |= UCTR | UCTXSTT;             // 2. Transmissor + START
+    uint8_t nack;
 
-    while(!(UCB0IFG & UCTXIFG));            // 3. Buffer vazio: escreve o dado
-    UCB0TXBUF = data;                       //    para destravar o ciclo de ACK
+    UCB0IFG &= ~UCNACKIFG;                 // Limpa NACK antigo
 
-    while(UCB0CTL1 & UCTXSTT);              // 4. Espera o ciclo de acknowledge
+    UCB0I2CSA = slaveAddr;                 // 1. Endereco do escravo
+    UCB0CTL1 |= UCTR | UCTXSTT;            // 2. Transmissor + START
 
-    uint8_t nack = (UCB0IFG & UCNACKIFG) ? 1 : 0;
-    if(!nack){                              // 5. Escravo respondeu:
-        while(!(UCB0IFG & UCTXIFG));        //    espera o dado ser transmitido
+    while (!(UCB0IFG & UCTXIFG));          // 3. Espera TXBUF vazio
+    UCB0TXBUF = data;                      //    e escreve o dado
+
+    while (UCB0CTL1 & UCTXSTT);            // 4. Espera ciclo de ACK do endereco
+
+    nack = (UCB0IFG & UCNACKIFG) ? 1 : 0;
+
+    if (!nack) {                           // 5. Escravo respondeu
+        while (!(UCB0IFG & UCTXIFG));      //    espera o dado ser transmitido
     }
 
-    UCB0CTL1 |= UCTXSTP;                    // 6. STOP
-    while(UCB0CTL1 & UCTXSTP);              // 7. Espera o STOP ser enviado
+    UCB0CTL1 |= UCTXSTP;                   // 6. STOP
+    while (UCB0CTL1 & UCTXSTP);            // 7. Espera o STOP sair
 
-    UCB0IFG &= ~UCNACKIFG;
-    return nack;                            // 8. ACK (0) ou NACK (1)
+    return nack;                           // 8. 0 = ACK, 1 = NACK
 }
 
-// Exercício 3: RS = isChar, D7-D4 = nibble, R/W = 0, pulso em EN
-uint8_t lcdWriteNibble (uint8_t nibble, uint8_t isChar){
-    uint8_t byte = (nibble << 4) | LCD_BL | (isChar ? LCD_RS : 0);
-    uint8_t nack = 0;
+// ----------------------------------------------------------------------------
+// Exercicio 3: escreve um nibble (modo 4 bits) com pulso em EN
+// Cada i2cSend leva ~200 us a 100 kHz, entao TEN >= 300 ns e TC >= 500 ns
+// ficam garantidos sem atrasos extras.
+// ----------------------------------------------------------------------------
+uint8_t lcdWriteNibble(uint8_t nibble, uint8_t isChar){
+    uint8_t err = 0;
+    uint8_t dado = ((nibble & 0x0F) << 4)     // D7..D4
+                 | LCD_BL                     // backlight sempre ligado
+                 | (isChar ? LCD_RS : 0);     // RS = isChar, RW = 0 (escrita)
 
-    nack |= i2cSend(LCD_I2C_ADDR, byte);            // 1. Dados com EN = 0
-    nack |= i2cSend(LCD_I2C_ADDR, byte | LCD_EN);   // 2. EN = 1
-    nack |= i2cSend(LCD_I2C_ADDR, byte);            // 3. EN = 0
+    err |= i2cSend(LCD_I2C_ADDR, dado);            // 1. Prepara dados, EN = 0
+    err |= i2cSend(LCD_I2C_ADDR, dado | LCD_EN);   // 2. EN = 1
+    err |= i2cSend(LCD_I2C_ADDR, dado);            // 3. EN = 0 (LCD le na descida)
 
-    return nack;
+    return err;   // 0 = tudo com ACK
 }
 
-// Exercício 4: primeiro os 4 bits mais significativos
-uint8_t lcdWriteByte (uint8_t byte, uint8_t isChar){
-    uint8_t nack = lcdWriteNibble(byte >> 4, isChar);
-    nack |= lcdWriteNibble(byte & 0x0F, isChar);
-
-    return nack;
+// ----------------------------------------------------------------------------
+// Exercicio 4: escreve um byte = nibble alto e depois nibble baixo
+// ----------------------------------------------------------------------------
+uint8_t lcdWriteByte(uint8_t byte, uint8_t isChar){
+    uint8_t err = 0;
+    err |= lcdWriteNibble(byte >> 4, isChar);     // MSNibble primeiro
+    err |= lcdWriteNibble(byte & 0x0F, isChar);   // LSNibble
+    return err;
 }
 
-void lcdInit (void){
-    // Enviar esse nibble três vezes para garantir que chegamos no modo de 8 bits
+// ----------------------------------------------------------------------------
+// Exercicio 5: inicializacao
+// ----------------------------------------------------------------------------
+void lcdInit(void){
+    // 0x3 tres vezes -> garante modo 8 bits partindo de qualquer estado
     uint8_t nibble = 3;
-
     lcdWriteNibble(nibble, 0);
     __delay_cycles(20000);
     lcdWriteNibble(nibble, 0);
@@ -130,51 +140,59 @@ void lcdInit (void){
     lcdWriteNibble(nibble, 0);
     __delay_cycles(20000);
 
-    // Na quarta vez, enviar 2 para colocar no modo 4 bits
+    // Quarta vez: 0x2 -> modo 4 bits
     nibble = 2;
     lcdWriteNibble(nibble, 0);
     __delay_cycles(20000);
 
-    // Configurar a interface: 4 bits, 2 linhas, fonte 5x8 (sem isso a
-    // segunda linha não aparece)
-    uint8_t byte = 0x28;
-    lcdWriteByte(byte, 0);
+    // Configura interface: 4 bits (M=0), 2 linhas (L=1), fonte 5x8 (F=0)
+    // (sem este comando o LCD fica em 1 linha e a linha 2 nao aparece)
+    lcdWriteByte(0x28, 0);
     __delay_cycles(20000);
 
-    // Configurar display (display ligado, cursor piscando)
-    byte = 0x0F;
-    lcdWriteByte(byte, 0);
+    // Display ligado, cursor ligado e piscando
+    lcdWriteByte(0x0F, 0);
     __delay_cycles(20000);
 
-    // Apagar tudo e levar o cursor para o início
-    byte = 0x01;
-    lcdWriteByte(byte, 0);
+    // Limpa e volta o cursor ao inicio (precisa de 1,53 ms)
+    lcdWriteByte(0x01, 0);
     __delay_cycles(20000);
-    lcdPos = 0;
+
+    // Entry mode: cursor incrementa, sem deslocar o display
+    lcdWriteByte(0x06, 0);
+    __delay_cycles(2000);
 }
 
-// Exercício 6: escreve a string e gerencia a quebra de linha.
-// Ao chegar na coluna 16 continua na linha 2; '\n' pula de linha;
-// ao fim da linha 2 volta para o início da linha 1.
+// ----------------------------------------------------------------------------
+// Posiciona o cursor: linha 0 -> DDRAM 0x00, linha 1 -> DDRAM 0x40
+// Comando "seta endereco da DDRAM" = 1 A6..A0
+// ----------------------------------------------------------------------------
+void lcdSetCursor(uint8_t linha, uint8_t coluna){
+    uint8_t addr = (linha ? 0x40 : 0x00) + (coluna & 0x0F);
+    lcdWriteByte(0x80 | addr, 0);
+}
+
+// ----------------------------------------------------------------------------
+// Exercicio 6: escreve string (termina em 0x00) e gerencia quebra de linha
+// - Ao completar 16 caracteres, pula para a outra linha
+// - '\n' tambem pula de linha
+// Considera que o cursor esta no inicio da linha 1 (apos lcdInit/clear)
+// ----------------------------------------------------------------------------
 void lcdWrite(char* str){
-    while(*str != 0){
+    uint8_t linha = 0;
+    uint8_t coluna = 0;
+
+    while (*str != '\0') {
         char c = *str++;
 
-        if(c == '\n'){
-            lcdPos = (lcdPos < LCD_COLUNAS) ? LCD_COLUNAS : 0;
-            lcdWriteByte(lcdPos ? 0xC0 : 0x80, 0);  // Início da linha 2 ou 1
-            continue;
+        if (c == '\n' || coluna >= 16) {
+            linha ^= 1;                // alterna linha 1 <-> linha 2
+            coluna = 0;
+            lcdSetCursor(linha, 0);
+            if (c == '\n') continue;   // '\n' nao e impresso
         }
 
-        if(lcdPos == LCD_COLUNAS){
-            lcdWriteByte(0xC0, 0);                  // DDRAM 0x40: linha 2
-        }
-        else if(lcdPos >= 2 * LCD_COLUNAS){
-            lcdWriteByte(0x80, 0);                  // DDRAM 0x00: linha 1
-            lcdPos = 0;
-        }
-
-        lcdWriteByte((uint8_t)c, 1);
-        lcdPos++;
+        lcdWriteByte((uint8_t)c, 1);   // RS = 1 -> caractere
+        coluna++;
     }
 }

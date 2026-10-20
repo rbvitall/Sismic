@@ -1,61 +1,73 @@
-// Módulo 3 - Visto 3: mensagens do MSP430 para o computador via UART
-// Sempre que a chave S1 for acionada, a frase é escrita no terminal do CCS.
+// ============================================================================
+// Lab. Sistemas Microprocessados 2026.2 - Modulo 3 - VISTO 3
+// A cada acionamento de S1, envia uma frase ao terminal serial do CCS
+// MSP430F5529 LaunchPad - USCI_A1 (P4.4 = TX, P4.5 = RX, ligacao interna eZ-FET)
 //
-// A USCI_A1 (P4.4 = TXD, P4.5 = RXD) é ligada internamente ao eZ-FET, que
-// aparece no PC como "MSP Application UART1". No CCS: View -> Terminal ->
-// Serial Terminal, porta COM correspondente, 9600 bps, 8 bits, sem paridade,
-// 1 stop bit (ver exercício 19 do Modulo3.pdf).
-//
-// Baud rate com SMCLK = 1048576 Hz:
-//   1048576 / 9600 = 109,23 -> UCBR = 109, UCBRS = round(0,23 * 8) = 2
-
+// Terminal do CCS (View -> Console -> Serial Console -> nova conexao):
+//   Porta: "MSP Application UART1" (COMx no Gerenciador de Dispositivos)
+//   9600 baud, 8 bits de dados, sem paridade, 1 stop bit
+// ============================================================================
 #include <msp430.h>
 #include <stdint.h>
 
-#define ABERTO  1
-#define FECHADO 0
+#define FRASE "Visto 3 - MSP430 falando com o PC via UART!\r\n"
 
-#define S1 BIT1     // P2.1
+void initUART_A1(void);
+void initChaveS1(void);
+void uartPrint(char* str);
 
-void initUART_A1(void){
-    UCA1CTL1 = UCSWRST;                 // Reset para configurar
-    UCA1CTL0 = 0;                       // UART 8N1, LSB primeiro
-    UCA1CTL1 = UCSSEL__SMCLK | UCSWRST;
-    UCA1BR0 = 109;
-    UCA1BR1 = 0;
-    UCA1MCTL = UCBRS_2 | UCBRF_0;
-    P4SEL |= BIT4 | BIT5;               // P4.4 = TXD, P4.5 = RXD
-    UCA1CTL1 &= ~UCSWRST;
-}
+void main(void) {
+    WDTCTL = WDTPW | WDTHOLD;
 
-void uartPrint(char *str){
-    while(*str){
-        while(!(UCA1IFG & UCTXIFG));    // Espera o buffer de transmissão
-        UCA1TXBUF = *str++;
+    initUART_A1();
+    initChaveS1();
+
+    uartPrint("UART pronta. Pressione S1.\r\n");
+
+    for(;;){
+        // S1 = P2.1, ativa em nivel baixo (pull-up)
+        if (!(P2IN & BIT1)) {                 // Chave fechou?
+            __delay_cycles(20000);            // Debounce (~20 ms)
+            if (!(P2IN & BIT1)) {             // Confirmou o acionamento
+                uartPrint(FRASE);             // Envia UMA vez por acionamento
+                while (!(P2IN & BIT1));       // Espera soltar
+                __delay_cycles(20000);        // Debounce da soltura
+            }
+        }
     }
 }
 
-void main(void){
-    WDTCTL = WDTPW | WDTHOLD;
+// ----------------------------------------------------------------------------
+// USCI_A1 em UART, 9600 bps, SMCLK = 1.048.576 Hz
+// Tabela do User's Guide (SLAU208): UCBRx = 6, UCBRSx = 0, UCBRFx = 13, UCOS16 = 1
+// ----------------------------------------------------------------------------
+void initUART_A1(void) {
+    UCA1CTL1 |= UCSWRST;                        // Reset para configurar
+    UCA1CTL1 |= UCSSEL_2;                       // SMCLK
+    UCA1BR0 = 6;
+    UCA1BR1 = 0;
+    UCA1MCTL = UCBRS_0 | UCBRF_13 | UCOS16;     // Oversampling
+    // UCA1CTL0 = 0 (padrao): 8 bits, sem paridade, 1 stop, LSB primeiro
 
-    P2DIR &= ~S1;  P2REN |= S1;  P2OUT |= S1;
+    P4SEL |= BIT4 | BIT5;                       // P4.4 = TXD, P4.5 = RXD
+    UCA1CTL1 &= ~UCSWRST;                       // Libera a UART
+}
 
-    initUART_A1();
+// ----------------------------------------------------------------------------
+// S1 (P2.1) como entrada com pull-up
+// ----------------------------------------------------------------------------
+void initChaveS1(void) {
+    P2DIR &= ~BIT1;
+    P2REN |=  BIT1;
+    P2OUT |=  BIT1;
+}
 
-    int X1;
-    int X1anterior = ABERTO;
-
-    while(1){
-        X1 = (P2IN & S1) ? ABERTO : FECHADO;
-
-        if(X1 == FECHADO && X1anterior == ABERTO){      // S1 acionada
-            uartPrint("Ola do MSP430! Sistemas Microprocessados 2026\r\n");
-        }
-
-        if(X1 != X1anterior){
-            __delay_cycles(20000);                      // Debounce
-        }
-
-        X1anterior = X1;
+// ----------------------------------------------------------------------------
+// Envia string terminada em '\0' pela USCI_A1
+// ----------------------------------------------------------------------------
+void uartPrint(char* str) {
+    while (*str != '\0') {
+        while (!(UCA1IFG & UCTXIFG));   // Espera buffer de TX livre
+        UCA1TXBUF = *str++;
     }
 }

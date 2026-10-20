@@ -87,22 +87,31 @@ uint8_t lcdWriteByte(uint8_t byte, uint8_t isChar){
 
 void lcdClear(void){
     lcdWriteByte(0x01, 0);
-    __delay_cycles(2000);                   // 1,53 ms
+    __delay_cycles(20000);                   // 1,53 ms
     lcdPos = 0;
 }
 
 void lcdInit(void){
-    __delay_cycles(50000);
+    __delay_cycles(50000);                  // Espera o LCD ligar (>40 ms)
+
+    // 0x3 três vezes: garante o modo 8 bits partindo de qualquer estado
+    // (esperas iguais às do Visto 1, testado na placa)
     lcdWriteNibble(0x3, 0);
-    __delay_cycles(5000);
+    __delay_cycles(20000);
     lcdWriteNibble(0x3, 0);
-    __delay_cycles(200);
+    __delay_cycles(20000);
     lcdWriteNibble(0x3, 0);
-    __delay_cycles(200);
+    __delay_cycles(20000);
+
     lcdWriteNibble(0x2, 0);                 // Modo 4 bits
-    lcdWriteByte(0x28, 0);                  // 2 linhas, 5x8
-    lcdWriteByte(0x0C, 0);                  // Display ligado, sem cursor
-    lcdWriteByte(0x06, 0);                  // Incrementa o cursor
+    __delay_cycles(20000);
+
+    lcdWriteByte(0x28, 0);                  // 4 bits, 2 linhas, fonte 5x8
+    __delay_cycles(20000);
+    lcdWriteByte(0x0C, 0);                  // Display ligado, cursor desligado
+    __delay_cycles(20000);
+    lcdWriteByte(0x06, 0);                  // Cursor anda para a direita
+    __delay_cycles(2000);
     lcdClear();
 }
 
